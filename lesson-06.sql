@@ -1,0 +1,75 @@
+-- STORE PROCEDURE: Thủ tục lưu trữ
+-- VD: Tìm kiếm department theo id
+-- sau DELIMITER phải có dấu cách
+
+DROP PROCEDURE IF EXISTS sp_01;
+
+DELIMITER $$ 
+CREATE PROCEDURE sp_01 (IN in_department_id INT)
+BEGIN
+	SELECT *
+    FROM department
+    WHERE department_id = in_department_id;
+END $$
+DELIMITER ;
+
+-- Gọi thủ tục
+CALL sp_01(9);
+
+-- Tham Số: IN, OUT,INOUT
+DROP PROCEDURE IF EXISTS sp_02;
+DELIMITER $$
+CREATE PROCEDURE sp_02(in in_a INT, IN in_b INT)
+BEGIN
+	SELECT in_a;
+    SELECT in_b;
+    SELECT in_a + in_b;
+END $$
+DELIMITER ;
+
+CALL sp_02(1,2);
+
+-- Tham số : INOUT(Kết hợp In va OUT)
+
+-- LOCAL VARIABLE: biến cục bộ
+-- VD: Lấy ra nhân viên thuộc phòng ban "Sale"
+DROP PROCEDURE IF EXISTS sp_04;
+DELIMITER $$
+CREATE PROCEDURE sp_04()
+BEGIN
+	DECLARE v_department_id INT;
+    
+    SELECT department_id INTO v_department_id
+	FROM department
+	WHERE department_name = "Sale";
+	
+    SELECT *
+    FROM account
+    WHERE department_id = v_department_id;
+		
+END $$
+DELIMITER ;
+
+CALL sp_04();
+
+-- FUNCTION: Hàm
+-- VD: Tạo function trả về tên phòng ban theo id
+
+DROP FUNCTION IF EXISTS fn_01;
+
+DELIMITER $$
+CREATE FUNCTION fn_01 (in_department_id INT) RETURNS VARCHAR(50)
+BEGIN
+    DECLARE v_department_name VARCHAR(50);
+    
+    SELECT department_name INTO v_department_name
+    FROM department
+    WHERE department_id = in_department_id;
+    
+    RETURN v_department_name;
+END $$
+DELIMITER ;
+
+SELECT fn_01(1);
+
+SET GLOBAL log_bin_trust_function_creators =1;
