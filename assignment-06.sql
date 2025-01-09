@@ -377,16 +377,209 @@ CALL qs_06('d');
 -- positionID: sẽ có default là developer
 -- departmentID: sẽ được cho vào 1 phòng chờ
 -- Sau đó in ra kết quả tạo thành công
+DROP PROCEDURE IF EXISTS sp_07;
+DELIMITER $$
+CREATE PROCEDURE sp_07 (
+    IN in_full_name VARCHAR(50),
+    IN in_email VARCHAR(50)
+)
+BEGIN
+    DECLARE v_username VARCHAR(50);
+    DECLARE v_position_id INT;
+    DECLARE v_department_id INT;
+    
+    SELECT SUBSTRING_INDEX(in_email, "@", 1) INTO v_username;
+    
+    SELECT position_id INTO v_position_id
+    FROM position
+    WHERE position_name = "Dev";
+    
+    SELECT department_id INTO v_department_id
+    FROM department
+    WHERE department_name = "Phòng chờ";
+    
+    INSERT INTO account (email   , username  , full_name   , department_id  , position_id  )
+    VALUES              (in_email, v_username, in_full_name, v_department_id, v_position_id);
+    
+    SELECT *
+    FROM account
+    WHERE email = in_email;
+END $$
+DELIMITER ;
+
+CALL sp_07("Ngyễn Minh Quôc","quoc.nv@gmail.com");
+
 -- Question 8: Viết 1 store cho phép người dùng nhập vào Essay hoặc Multiple-Choice
 -- để thống kê câu hỏi essay hoặc multiple-choice nào có content dài nhất
+DROP PROCEDURE IF EXISTS sp_08;
+DELIMITER $$
+CREATE PROCEDURE sp_08 (IN in_type_name ENUM("Essay", "Multiple-Choice"))
+BEGIN
+    DECLARE v_type_id INT;
+    
+    SELECT type_id INTO v_type_id
+    FROM type_question
+    WHERE type_name = in_type_name;
+    
+    WITH c1 AS (
+        SELECT *, CHAR_LENGTH(content) AS content_length
+        FROM question
+        WHERE type_id = v_type_id
+    )
+    SELECT *
+    FROM c1
+    WHERE content_length =
+        (SELECT MAX(content_length)
+        FROM c1);
+END $$
+DELIMITER ;
+
+CALL sp_08("Multiple-Choice");
+
 -- Question 9: Viết 1 store cho phép người dùng xóa exam dựa vào ID
+DROP PROCEDURE IF EXISTS sp_09;
+DELIMITER $$
+CREATE PROCEDURE sp_09 (IN in_exam_id INT)
+BEGIN
+   DELETE FROM exam
+   WHERE exam_id = in_exam_id;
+END $$
+DELIMITER ;
 -- Question 10: Tìm ra các exam được tạo từ 3 năm trước và xóa các exam đó đi (sử
 -- dụng store ở câu 9 để xóa)
--- Sau đó in số lượng record đã remove từ các table liên quan trong khi
--- removing
+-- Sau đó in số lượng record đã remove từ các table liên quan trong khi removing
+DROP PROCEDURE IF EXISTS sp_10;
+DELIMITER $$
+CREATE PROCEDURE sp_10 ()
+BEGIN
+   DECLARE v_exam_count INT;
+   DECLARE v_exam_question_count INT;
+   
+   SELECT COUNT(*) INTO v_exam_count
+   FROM exam
+   WHERE created_date < CURRENT_DATE - INTERVAL 5 YEAR;
+   
+   
+   SELECT COUNT(*) INTO v_exam_question_count
+   FROM exam
+   INNER JOIN exam_question USING (exam_id)
+    WHERE created_date < CURRENT_DATE - INTERVAL 5 YEAR;
+    
+    DELETE FROM exam
+	WHERE created_date < CURRENT_DATE - INTERVAL 5 YEAR;
+    
+    SELECT v_exam_count  + v_exam_question_count AS removed;
+END $$ 
+DELIMITER ;
+
+CALL sp_10();
 -- Question 11: Viết store cho phép người dùng xóa phòng ban bằng cách người dùng
 -- nhập vào tên phòng ban và các account thuộc phòng ban đó sẽ được
 -- chuyển về phòng ban default là phòng ban chờ việc
+DROP PROCEDURE IF EXISTS sp_11;
+DELIMITER //
+
+CREATE PROCEDURE sp_11(
+    IN in_dept_name VARCHAR(50)
+)
+BEGIN
+    DECLARE default_dept_id INT;
+    SELECT department_id INTO default_dept_id 
+    FROM department 
+    WHERE department_name = 'Chờ việc';
+
+    UPDATE account 
+    SET department_id = default_dept_id
+    WHERE department_id = (
+        SELECT department_id 
+        FROM department 
+        WHERE department_name = in_dept_name
+    );
+
+    DELETE FROM department 
+    WHERE department_name = in_dept_name;
+    
+END $$
+DELIMITER ;
+CALL sp_11('Kỹ thuật');
+
+DROP PROCEDURE IF EXISTS sp_11;
+DELIMITER $$
+CREATE PROCEDURE sp_11(IN in_department_name VARCHAR(50))
+BEGIN
+	DECLARE v_old_department_id INT;
+	DECLARE v_new_department_id INT;
+
+	SELECT department_id INTO v_new_department_id
+    FROM department
+    WHERE department_name = in_department_name;
+    
+    SELECT department_id INTO v_old_department_id
+    FROM department
+    WHERE department_name = "Phòng chờ";
+    
+    UPDATE account
+	SET department_id = v_new_department_id
+    WHERE department_id = v_old_department_id;
+    
+    DELETE FROM department
+    WHERE department_name = in_department_name;
+END $$
+DELIMITER ;
+
+CALL sp_11("Marketing")
 -- Question 12: Viết store để in ra mỗi tháng có bao nhiêu câu hỏi được tạo trong năm nay
+DROP PROCEDURE IF EXISTS sp_12;
+DELIMITER $$
+CREATE PROCEDURE sp_12()
+BEGIN
+	DECLARE current_year INT;
+    SET current_year = YEAR(CURRENT_DATE);
+    
+    SELECT MONTH(created_date) AS month,
+			COUNT(*) AS number_questions
+    FROM question 
+    WHERE YEAR(created_date) = current_year
+    GROUP BY MONTH(created_date)
+    ORDER BY month ASC;
+END $$
+DELIMITER ;
+
+WITH RECURSIVE c1 (month) AS (
+    SELECT 1
+    UNION ALL
+    SELECT month + 1 FROM c1 WHERE month < 12
+), c2 AS (
+    SELECT YEAR(CURRENT_DATE) AS year, month
+    FROM c1
+), c3 AS (
+    SELECT *, YEAR(created_date) AS year, MONTH(created_date) AS month
+    FROM question
+    WHERE YEAR(created_date) = YEAR(CURRENT_DATE)
+)
+SELECT year, month, COUNT(question_id)
+FROM c2
+LEFT JOIN c3 USING (year, month)
+GROUP BY year, month;
+
+CALL sp_12();
 -- Question 13: Viết store để in ra mỗi tháng có bao nhiêu câu hỏi được tạo trong 6 tháng gần đây nhất
 -- (Nếu tháng nào không có thì sẽ in ra là "không có câu hỏi nào trong tháng")
+
+WITH RECURSIVE c1 (date) AS (
+    SELECT CURRENT_DATE - INTERVAL 6 MONTH
+    UNION ALL
+    SELECT date + INTERVAL 1 MONTH
+    FROM c1
+    WHERE date < CURRENT_DATE - INTERVAL 1 MONTH
+), c2 AS (
+    SELECT YEAR(date) AS year, MONTH(date) AS month
+    FROM c1
+), c3 AS (
+    SELECT *, YEAR(created_date) AS year, MONTH(created_date) AS month
+    FROM question
+)
+SELECT year, month, COUNT(question_id)
+FROM c2
+LEFT JOIN c3 USING (year, month)
+GROUP BY year, month;
